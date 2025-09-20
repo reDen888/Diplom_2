@@ -1,11 +1,14 @@
 package tests;
 
 import base.BaseTest;
+import data.TestData;
+import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
 import io.restassured.response.Response;
 import models.*;
 import org.junit.Before;
 import org.junit.Test;
+import api.ApiClient;
 
 import java.util.*;
 
@@ -18,72 +21,60 @@ public class OrderCreationTest extends BaseTest {
 
     @Before
     public void prepareTestData() {
-        // Создание уникального пользователя для теста
-        String email = "orderuser_" + System.currentTimeMillis() + "@ya.ru";
-        String password = "password";
-        String name = "Order User";
+        apiClient = new ApiClient(requestSpec);
+        // Создание уникального пользователя
+        String email = TestData.generateEmail();
+        String password = TestData.generatePassword();
+        String name = TestData.generateName();
         User user = new User(email, password, name);
         Response registerResponse = createUser(user);
-
         // Проверяем, что регистрация успешна
         registerResponse.then().statusCode(HTTP_OK);
         AuthResponse authResponse = registerResponse.as(AuthResponse.class);
-
         // Извлекаем токены
         accessToken = extractAccessToken(authResponse);
-        refreshToken = extractRefreshToken(authResponse); // Сохраняем refreshToken
-
+        refreshToken = extractRefreshToken(authResponse);
         // Получение списка ингредиентов
         Response ingredientsResponse = getIngredients();
-        ingredientsResponse.then().statusCode(HTTP_OK); // Проверяем успешность запроса ингредиентов
-
+        ingredientsResponse.then().statusCode(HTTP_OK);
         IngredientsResponse ingredients = ingredientsResponse.as(IngredientsResponse.class);
         assertTrue("Не удалось получить список ингредиентов", ingredients.isSuccess());
         assertNotNull("Список ингредиентов не должен быть null", ingredients.getData());
         assertTrue("Список ингредиентов должен содержать минимум 2 элемента", ingredients.getData().size() >= 2);
-
-        // Выбираем первые два ингредиента
+        // Выбираем первые два ингредиента (используем getId())
         validIngredients = Arrays.asList(
-                ingredients.getData().get(0).get_id(),
-                ingredients.getData().get(1).get_id()
+                ingredients.getData().get(0).getId(),
+                ingredients.getData().get(1).getId()
         );
     }
 
     @Test
     @DisplayName("Создание заказа с авторизацией и ингредиентами")
+    @Description("Проверяет возможность создания заказа авторизованным пользователем с корректным списком ингредиентов.")
     public void testCreateOrderWithAuthAndIngredients() {
-        OrderRequest orderRequest = new OrderRequest(validIngredients);
-        Response response = createOrder(orderRequest, accessToken);
-
+        Response response = createOrder(validIngredients, accessToken);
         // Проверяем код ответа
         response.then().statusCode(HTTP_OK);
-
-        // Десериализуем ответ в Map для большей гибкости
         Map<String, Object> responseBody = response.as(Map.class);
-
         // Проверяем поля ответа
         assertTrue("Ответ должен быть успешным (success=true)", (Boolean) responseBody.get("success"));
         assertNotNull("Имя заказа (name) не должно быть null", responseBody.get("name"));
         assertTrue("Имя заказа не должно быть пустым", !((String) responseBody.get("name")).isEmpty());
-
         // Проверяем поле order
         @SuppressWarnings("unchecked")
         Map<String, Object> order = (Map<String, Object>) responseBody.get("order");
         assertNotNull("Поле order не должно быть null", order);
-
         // Проверяем номер заказа
         Object numberObj = order.get("number");
         assertNotNull("Номер заказа (number) не должен быть null", numberObj);
         assertTrue("Номер заказа должен быть числом", numberObj instanceof Number);
         int orderNumber = ((Number) numberObj).intValue();
         assertTrue("Номер заказа должен быть больше 0", orderNumber > 0);
-
         // Проверяем наличие других полей заказа
-        assertNotNull("Поле _id заказа не должно быть null", order.get("_id"));
+        assertNotNull("Поле id заказа не должно быть null", order.get("_id"));
         assertNotNull("Поле status заказа не должно быть null", order.get("status"));
         assertNotNull("Поле createdAt заказа не должно быть null", order.get("createdAt"));
         assertNotNull("Поле updatedAt заказа не должно быть null", order.get("updatedAt"));
-
         // Проверяем ingredients
         assertNotNull("Поле ingredients заказа не должно быть null", order.get("ingredients"));
         assertTrue("Поле ingredients должно быть списком", order.get("ingredients") instanceof List);
@@ -91,91 +82,74 @@ public class OrderCreationTest extends BaseTest {
 
     @Test
     @DisplayName("Создание заказа без авторизации")
+    @Description("Проверяет поведение API при попытке создания заказа без авторизации. (Документация требует 401, но API возвращает 200)")
     public void testCreateOrderWithoutAuth() {
-        OrderRequest orderRequest = new OrderRequest(validIngredients);
-        Response response = createOrder(orderRequest, null); // Без токена
-
+        Response response = createOrder(validIngredients, null);
         // Проверяем код ответа
         response.then().statusCode(HTTP_OK);
-
         // Десериализуем ответ в Map
         Map<String, Object> responseBody = response.as(Map.class);
-
         // Проверяем поля ответа - API возвращает success=true
         Boolean success = (Boolean) responseBody.get("success");
-        assertNotNull("Ответ должен быть успешным (success не null)", success); // <-- Более общая проверка
-
+        assertNotNull("Ответ должен быть успешным (success не null)", success);
         // Проверяем, что имя заказа возвращается
         String name = (String) responseBody.get("name");
         assertNotNull("Имя заказа (name) не должно быть null", name);
         assertFalse("Имя заказа не должно быть пустым", name.isEmpty());
-
         // Проверяем поле order
         @SuppressWarnings("unchecked")
         Map<String, Object> order = (Map<String, Object>) responseBody.get("order");
         assertNotNull("Поле order не должно быть null", order);
-
         // Проверяем номер заказа
         Object numberObj = order.get("number");
         assertNotNull("Номер заказа (number) не должен быть null", numberObj);
         assertTrue("Номер заказа должен быть числом", numberObj instanceof Number);
         int orderNumber = ((Number) numberObj).intValue();
         assertTrue("Номер заказа должен быть больше 0", orderNumber > 0);
-
         // Выводим предупреждение о несоответствии документации
         System.out.println("ПРЕДУПРЕЖДЕНИЕ: API позволяет создавать заказы без авторизации, что противоречит документации. Ожидался код 401.");
     }
 
     @Test
-    @DisplayName("Создание заказа без авторизации с ингредиентами") // Новый тест
+    @DisplayName("Создание заказа без авторизации с ингредиентами")
+    @Description("Проверяет поведение API при попытке создания заказа без авторизации, но с корректными ингредиентами. (Документация требует 401, но API возвращает 200)")
     public void testCreateOrderWithoutAuthWithIngredients() {
-        OrderRequest orderRequest = new OrderRequest(validIngredients);
-        Response response = createOrder(orderRequest, null); // Без токена, но с ингредиентами
-
-        // Проверяем код ответа - НЕСМОТРЯ НА ДОКУМЕНТАЦИЮ, API возвращает 200
+        Response response = createOrder(validIngredients, null);
+        // Проверяем код ответа - API возвращает 200
         response.then().statusCode(HTTP_OK);
-
         // Десериализуем ответ в Map
         Map<String, Object> responseBody = response.as(Map.class);
-
         // Проверяем поля ответа - API возвращает success=true
         Boolean success = (Boolean) responseBody.get("success");
         assertNotNull("Ответ должен быть успешным (success не null)", success);
-
         // Проверяем, что имя заказа возвращается
         String name = (String) responseBody.get("name");
         assertNotNull("Имя заказа (name) не должно быть null", name);
         assertFalse("Имя заказа не должно быть пустым", name.isEmpty());
-
         // Проверяем поле order
         @SuppressWarnings("unchecked")
         Map<String, Object> order = (Map<String, Object>) responseBody.get("order");
         assertNotNull("Поле order не должно быть null", order);
-
         // Проверяем номер заказа
         Object numberObj = order.get("number");
         assertNotNull("Номер заказа (number) не должен быть null", numberObj);
         assertTrue("Номер заказа должен быть числом", numberObj instanceof Number);
         int orderNumber = ((Number) numberObj).intValue();
         assertTrue("Номер заказа должен быть больше 0", orderNumber > 0);
-
         // Выводим предупреждение о несоответствии документации
         System.out.println("ПРЕДУПРЕЖДЕНИЕ: API позволяет создавать заказы без авторизации с ингредиентами, что противоречит документации. Ожидался код 401.");
     }
 
     @Test
     @DisplayName("Создание заказа без ингредиентов")
+    @Description("Проверяет, что попытка создания заказа без указания ингредиентов приводит к ошибке.")
     public void testCreateOrderWithoutIngredients() {
         // Передаем пустой список ингредиентов
-        OrderRequest orderRequest = new OrderRequest(Collections.emptyList());
-        Response response = createOrder(orderRequest, accessToken);
-
+        Response response = createOrder(Collections.emptyList(), accessToken);
         // Проверяем код ответа - документация говорит 400
         response.then().statusCode(HTTP_BAD_REQUEST);
-
         // Десериализуем ответ в Map
         Map<String, Object> responseBody = response.as(Map.class);
-
         // Проверяем поля ответа
         Boolean success = (Boolean) responseBody.get("success");
         String message = (String) responseBody.get("message");
@@ -186,13 +160,12 @@ public class OrderCreationTest extends BaseTest {
 
     @Test
     @DisplayName("Создание заказа с неверным хешем ингредиентов")
+    @Description("Проверяет поведение API при попытке создания заказа с некорректными ID ингредиентов.")
     public void testCreateOrderWithInvalidIngredientHash() {
         // Передаем невалидные ID ингредиентов
         List<String> invalidIngredients = Arrays.asList("invalid_hash_1", "invalid_hash_2");
-        OrderRequest orderRequest = new OrderRequest(invalidIngredients);
-        Response response = createOrder(orderRequest, accessToken);
+        Response response = createOrder(invalidIngredients, accessToken);
         response.then().statusCode(HTTP_INTERNAL_ERROR);
-
         // Пытаемся десериализовать ответ, даже если это 500
         try {
             Map<String, Object> responseBody = response.as(Map.class);
@@ -201,10 +174,8 @@ public class OrderCreationTest extends BaseTest {
             if (success != null) {
                 assertFalse("Ответ должен быть неуспешным (success=false) при 500", success);
             }
-
         } catch (Exception e) {
             System.out.println("Не удалось десериализовать тело ответа 500: " + e.getMessage());
         }
     }
-
 }
