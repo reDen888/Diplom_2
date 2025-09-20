@@ -1,0 +1,31 @@
+<div>POST to https://stellarburgers.nomoreparties.site/api/orders</div>
+
+<h4>Body</h4>
+<div>
+    <pre class="preformated-text">
+{
+    &quot;ingredients&quot;: [
+        &quot;invalid_hash_1&quot;,
+        &quot;invalid_hash_2&quot;
+    ]
+}    </pre>
+</div>
+
+<h4>Headers</h4>
+<div>
+        <div>Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4Y2ViNjk3OWVkMjgwMDAxYjZhNDI1OSIsImlhdCI6MTc1ODM3NzYyMywiZXhwIjoxNzU4Mzc4ODIzfQ.Rmf_J4EWytruA2sGG1jitKfBuPS6nMSvHQkJ3dDp5SA</div>
+        <div>Accept: */*</div>
+        <div>Content-Type: application/json</div>
+</div>
+
+
+
+<h4>Curl</h4>
+<div>
+curl -v -X POST &#39;https://stellarburgers.nomoreparties.site/api/orders&#39; -H &#39;Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4Y2ViNjk3OWVkMjgwMDAxYjZhNDI1OSIsImlhdCI6MTc1ODM3NzYyMywiZXhwIjoxNzU4Mzc4ODIzfQ.Rmf_J4EWytruA2sGG1jitKfBuPS6nMSvHQkJ3dDp5SA&#39; -H &#39;Accept: */*&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{
+    &quot;ingredients&quot;: [
+        &quot;invalid_hash_1&quot;,
+        &quot;invalid_hash_2&quot;
+    ]
+}&#39;
+</div>
